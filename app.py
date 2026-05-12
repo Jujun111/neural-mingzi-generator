@@ -223,6 +223,9 @@ class AppSettings:
     required_models: List[str] = field(
         default_factory=lambda: _parse_csv_env("CNG_REQUIRED_MODELS", list(SUPPORTED_MODELS))
     )
+    disabled_models: List[str] = field(
+        default_factory=lambda: _parse_csv_env("CNG_DISABLED_MODELS", [])
+    )
     device_preference: str = field(default_factory=lambda: os.getenv("CNG_DEVICE", "cpu").lower())
     default_temperature: float = field(
         default_factory=lambda: float(os.getenv("CNG_DEFAULT_TEMPERATURE", "0.8"))
@@ -262,6 +265,7 @@ class AppSettings:
         for collection_name, collection in (
             ("preload_models", self.preload_models),
             ("required_models", self.required_models),
+            ("disabled_models", self.disabled_models),
         ):
             invalid = [model_type for model_type in collection if model_type not in SUPPORTED_MODELS]
             if invalid:
@@ -569,6 +573,12 @@ def _status(available: bool, detail: str, source: Optional[str] = None) -> Dict[
 
 
 def _model_artifact_status(settings: AppSettings, model_type: str) -> Dict[str, Any]:
+    if model_type in settings.disabled_models:
+        return _status(
+            False,
+            "Model is disabled in this deployment to stay within the public demo memory budget.",
+        )
+
     if model_type == "markov":
         if settings.markov_artifact_path.exists():
             return _status(True, "Markov artifact is present and will load on demand.", str(settings.markov_artifact_path))
@@ -738,6 +748,15 @@ def _load_model_by_type(settings: AppSettings, device: str, model_type: str) -> 
 
 
 def _ensure_model_loaded(runtime: RuntimeState, model_type: str) -> LoadedModel:
+    if model_type in runtime.settings.disabled_models:
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                f"Requested model '{model_type}' is disabled in this deployment to stay within "
+                "the public demo memory budget."
+            ),
+        )
+
     model_entry = runtime.loaded_models.get(model_type)
     if model_entry is not None:
         return model_entry
@@ -1087,6 +1106,9 @@ def load_runtime(
     }
 
     for model_type in active_settings.preload_models:
+        if model_type in active_settings.disabled_models:
+            LOGGER.info("Skipping disabled model '%s'.", model_type)
+            continue
         LOGGER.info("Loading model '%s'...", model_type)
         try:
             loaded_model = _load_model_by_type(active_settings, device, model_type)

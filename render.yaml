@@ -23,9 +23,11 @@ services:
       - key: CNG_PRELOAD_MODELS
         value: ""
       - key: CNG_REQUIRED_MODELS
-        value: markov,lstm,transformer
+        value: markov
+      - key: CNG_DISABLED_MODELS
+        value: lstm,transformer
       - key: CNG_ENABLE_FIM_MODE
-        value: "true"
+        value: "false"
       - key: CNG_ENABLE_DYNASTY_MODE
         value: "false"
       - key: CNG_FIM_WEIGHTS

@@ -255,7 +255,10 @@ The public backend should use these Render environment variables:
 
 - `CNG_ARTIFACT_BASE_URL`: GitHub Release download URL
 - `CNG_DEVICE`: `cpu`
-- `CNG_ENABLE_FIM_MODE`: `true`
+- `CNG_PRELOAD_MODELS`: empty on Render Free, or `markov,lstm,transformer` on a larger paid instance
+- `CNG_REQUIRED_MODELS`: `markov` on Render Free, or `markov,lstm,transformer` on a larger paid instance
+- `CNG_DISABLED_MODELS`: `lstm,transformer` on Render Free to avoid PyTorch memory restarts
+- `CNG_ENABLE_FIM_MODE`: `false` on Render Free, or `true` on a larger paid instance
 - `CNG_ENABLE_DYNASTY_MODE`: `false`
 - `CNG_FEEDBACK_DATABASE_URL`: Supabase Postgres connection string
 - `CNG_FEEDBACK_AUTO_INIT`: `true`
@@ -274,7 +277,8 @@ Create a Supabase project and use its Postgres connection string as `CNG_FEEDBAC
 ### Public v1 behavior
 
 - Dynasty mode is disabled in public v1 because `latest.db` is local-only.
-- Classic, Compare, Name Workshop, and Evaluation Lab remain enabled.
+- On Render Free, Markov, Historical Pattern, Evaluation Lab, and feedback remain enabled. LSTM, Transformer, and Creative FIM are intentionally disabled because PyTorch inference exceeds the 512 MB free-instance memory budget.
+- On a larger backend instance, remove `CNG_DISABLED_MODELS`, restore `CNG_REQUIRED_MODELS=markov,lstm,transformer`, and set `CNG_ENABLE_FIM_MODE=true` to expose the full neural demo.
 - Feedback writes go through the FastAPI backend; the browser never receives database credentials.
 
 ## Portfolio angle
