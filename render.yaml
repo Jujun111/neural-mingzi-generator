@@ -8,6 +8,18 @@ services:
     envVars:
       - key: CNG_DEVICE
         value: cpu
+      - key: WEB_CONCURRENCY
+        value: "1"
+      - key: OMP_NUM_THREADS
+        value: "1"
+      - key: MKL_NUM_THREADS
+        value: "1"
+      - key: OPENBLAS_NUM_THREADS
+        value: "1"
+      - key: NUMEXPR_NUM_THREADS
+        value: "1"
+      - key: MALLOC_ARENA_MAX
+        value: "2"
       - key: CNG_PRELOAD_MODELS
         value: ""
       - key: CNG_REQUIRED_MODELS

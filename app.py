@@ -15,7 +15,6 @@ from typing import Any, Deque, Dict, List, Literal, Optional, Tuple
 os.environ.setdefault("KMP_DUPLICATE_LIB_OK", "TRUE")
 
 import opencc
-import torch
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
@@ -30,16 +29,7 @@ from feedback_store import (
     StoredFeedbackEvent,
     build_feedback_store,
 )
-from inference import (
-    generate_fim_name,
-    generate_name,
-    normalize_prompt_text,
-    normalize_seed_text,
-    token_is_single_occurrence,
-    token_matches_position,
-)
 from markov_chain import ChineseNameMarkov
-from model import ChineseNameLSTM, ChineseNameTransformer
 
 
 logging.basicConfig(
@@ -61,6 +51,7 @@ CURATED_DYNASTIES: Tuple[Dict[str, Any], ...] = (
     {"dynasty_id": 20, "code": "Qing", "label_en": "Qing", "label_zh": "清"},
 )
 CURATED_DYNASTY_IDS = tuple(item["dynasty_id"] for item in CURATED_DYNASTIES)
+ConstraintPosition = Literal["any", "start", "middle", "end"]
 
 
 def _parse_csv_env(env_name: str, default: List[str]) -> List[str]:
@@ -84,6 +75,57 @@ def _parse_int_env(env_name: str, default: int) -> int:
     if raw_value is None:
         return default
     return int(raw_value)
+
+
+def normalize_prompt_text(
+    prompt_text: Optional[str], converter: Optional[opencc.OpenCC] = None
+) -> Tuple[Optional[str], bool]:
+    """Normalize simplified Chinese prompts into the training domain without importing torch."""
+    if not prompt_text:
+        return None, False
+
+    active_converter = converter or opencc.OpenCC("s2t")
+    normalized_text = active_converter.convert(prompt_text)
+    return normalized_text, normalized_text != prompt_text
+
+
+def normalize_seed_text(
+    seed_text: Optional[str], converter: Optional[opencc.OpenCC] = None
+) -> Tuple[Optional[str], bool]:
+    return normalize_prompt_text(seed_text, converter=converter)
+
+
+def token_matches_position(
+    name: str,
+    token: Optional[str],
+    position: ConstraintPosition = "any",
+) -> bool:
+    if not token:
+        return True
+
+    if position == "any":
+        return token in name
+
+    if position == "start":
+        return name.startswith(token)
+
+    if position == "end":
+        return name.endswith(token)
+
+    if position == "middle":
+        token_length = len(token)
+        max_start = len(name) - token_length - 1
+        if max_start < 1:
+            return False
+        return any(name[index : index + token_length] == token for index in range(1, max_start + 1))
+
+    raise ValueError(f"Unsupported token position '{position}'.")
+
+
+def token_is_single_occurrence(name: str, token: Optional[str]) -> bool:
+    if not token:
+        return True
+    return name.count(token) == 1
 
 
 def _load_local_env_file(path: str = ".env") -> None:
@@ -205,10 +247,15 @@ class AppSettings:
 
     def resolve_device(self) -> str:
         if self.device_preference == "auto":
+            import torch
+
             return "cuda" if torch.cuda.is_available() else "cpu"
-        if self.device_preference == "cuda" and not torch.cuda.is_available():
-            LOGGER.warning("CUDA requested but unavailable; falling back to CPU.")
-            return "cpu"
+        if self.device_preference == "cuda":
+            import torch
+
+            if not torch.cuda.is_available():
+                LOGGER.warning("CUDA requested but unavailable; falling back to CPU.")
+                return "cpu"
         return self.device_preference
 
     def validate(self) -> None:
@@ -582,6 +629,9 @@ def _load_reference_name_pairs(settings: AppSettings) -> tuple[List[str], List[s
 
 
 def _load_lstm(settings: AppSettings, device: str) -> LoadedModel:
+    import torch
+    from model import ChineseNameLSTM
+
     vocab = _load_pickle(settings.lstm_vocab_path)
     model = ChineseNameLSTM(
         vocab_size=len(vocab),
@@ -597,6 +647,9 @@ def _load_lstm(settings: AppSettings, device: str) -> LoadedModel:
 
 
 def _load_transformer(settings: AppSettings, device: str) -> LoadedModel:
+    import torch
+    from model import ChineseNameTransformer
+
     vocab = _load_pickle(settings.transformer_vocab_path)
     model = ChineseNameTransformer(
         vocab_size=len(vocab),
@@ -616,6 +669,9 @@ def _load_transformer(settings: AppSettings, device: str) -> LoadedModel:
 
 
 def _load_fim(settings: AppSettings, device: str) -> LoadedModel:
+    import torch
+    from model import ChineseNameTransformer
+
     checkpoint = torch.load(settings.fim_weights_path, map_location=device, weights_only=False)
     if checkpoint.get("artifact_type") != "fim_template_decoder":
         raise RuntimeError("FIM checkpoint is not a trained fim_template_decoder artifact.")
@@ -816,6 +872,8 @@ def _generate_from_model(
             for _ in range(count)
         ]
         return generations, None
+
+    from inference import generate_name
 
     active_temperature = temperature or runtime.settings.default_temperature
     generations = [
@@ -1367,6 +1425,7 @@ def create_app(
         notice = _creative_mode_notice(support_level)
 
         fim_model = _ensure_fim_loaded(runtime)
+        from inference import generate_fim_name
 
         normalized_seed, _ = normalize_seed_text(payload.seed, converter=runtime.converter)
         vocab_payload = fim_model.vocab
