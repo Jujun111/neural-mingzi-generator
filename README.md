@@ -1,291 +1,217 @@
-# Chinese Name Generator
+# Neural Mingzi Generator
 
-A comparative machine learning project on **Chinese micro-sequence generation** across three modeling strategies:
+Neural Mingzi Generator is a small machine-learning system for generating Chinese-style names. It compares three approaches to a deliberately tiny sequence-generation task:
 
-- `markov`: a first-order probabilistic baseline
-- `lstm`: a character-level recurrent model
-- `transformer`: a small causal decoder-only Transformer
+- `Markov`: a lightweight probabilistic baseline
+- `LSTM`: a character-level recurrent neural network
+- `Transformer`: a small causal decoder-only Transformer
 
-The repository now exposes two connected public surfaces:
+The project includes a bilingual web demo, a FastAPI inference service, a React + TypeScript frontend, and a reproducible study pipeline for model comparison.
 
-- a **Playground** for open-ended exploration and side-by-side model comparison
-- an **Evaluation Lab** for lightweight but analyzable human feedback tasks
+## Live Demo
 
-The Playground also includes a **Name Workshop** for users who already have a favorite character or phrase. It separates historical-pattern search from creative ancient-style completion so the product does not blur corpus evidence with imagination.
+- Web app: https://chinese-name-generator-frontend.onrender.com
+- API health: https://chinese-name-generator-api.onrender.com/health
+- Technical write-up: [technical_blog.md](technical_blog.md)
 
-## Why this project exists
+The public demo currently runs on a free Render instance. To keep the service stable within the free memory limit, the hosted version enables Markov generation and feedback collection by default. Neural checkpoints are included as project artifacts and can be run locally or on a larger backend instance.
 
-This project asks a narrow but useful question:
+## What You Can Try
 
-> What happens when the sequence is extremely short, structurally constrained, and culturally patterned?
+The web app has two main surfaces.
 
-Chinese names are a good edge case. They are short, but not trivial. They depend on surname structure, character compatibility, and corpus bias. That makes them useful for testing whether architectural inductive bias still matters when the context window is tiny.
+**Playground**
 
-## System architecture
+- `Classic`: generate names from the available model.
+- `Compare`: view side-by-side model outputs when multiple models are enabled.
+- `Name Workshop`: provide a fixed character or phrase, then ask the system to search for names that contain it.
+- `Dynasty`: an experimental Markov mode based on dynasty slices of CBDB. This requires the private CBDB database and is disabled in the public deployment.
+
+**Evaluation Lab**
+
+- `Blind Pairwise`: choose which anonymous batch feels more like plausible Chinese names.
+- `Dynasty Guess`: guess which dynasty style a Markov-generated batch resembles.
+
+Feedback is stored through the backend with anonymous browser session IDs. The browser never receives database credentials.
+
+## Why This Project Is Interesting
+
+Chinese names are very short sequences, but they are not simple strings. A generated name has to balance surname structure, character-level compatibility, memorization risk, novelty, and cultural plausibility.
+
+That makes the task a useful stress test for a common assumption in modern sequence modeling: bigger contextual architectures are not always automatically better when the sequence is extremely short and constrained. The current study asks whether recurrent inductive bias can remain competitive in this micro-sequence setting.
+
+The main result is intentionally framed cautiously: in this dataset and model-size regime, the LSTM was stronger than the small causal Transformer on several automatic metrics. This should be read as evidence from one controlled experimental setup, not as a universal claim about Chinese name generation or Transformer architectures.
+
+## System Overview
 
 ```mermaid
 flowchart LR
-    A["CBDB data (local only)"] --> B["Cleaning + fixed splits"]
-    B --> C["Study pipeline"]
-    C --> D["Structured checkpoints + metrics"]
-    D --> E["FastAPI inference service"]
-    D --> F["Offline web-eval task pools"]
-    E --> G["React + TypeScript client"]
-    E --> H["Managed feedback store"]
+    A["CBDB-derived names"] --> B["Cleaning and fixed splits"]
+    B --> C["Training pipeline"]
+    C --> D["Model checkpoints and metrics"]
+    D --> E["FastAPI inference API"]
+    D --> F["Offline evaluation task pools"]
+    E --> G["React + TypeScript web app"]
+    E --> H["Supabase/Postgres feedback store"]
 ```
 
-## Repository layout
+## Repository Map
 
-- `app.py`: FastAPI inference service for Playground and Evaluation Lab
-- `frontend/`: React + TypeScript client
-- `study.py`: fairness-first study pipeline plus web-eval task-pool export
-- `plot_study.py`: figure generation for the deeper study
-- `study_protocol.md`: detailed study design and execution order
-- `technical_blog.md`: current write-up of the modeling story
-- `data/sample_names.json`: local fallback sample names for API smoke tests
-- `data/sample_eval_tasks.json`: local fallback task pool for the Evaluation Lab
+- `app.py`: FastAPI backend for generation, evaluation tasks, and feedback submission
+- `frontend/`: React + TypeScript web client
+- `study.py`: training, evaluation, ablation, FIM, and task-pool export commands
+- `plot_study.py`: study figure generation
+- `technical_blog.md`: long-form technical write-up
+- `study_protocol.md`: experiment design notes
+- `data/sample_names.json`: tiny sample data for smoke tests
+- `data/sample_eval_tasks.json`: small sample task pool for the Evaluation Lab
+- `tests/`: backend and study-pipeline tests
 
-## Quick start
+## Run Locally
 
-### 1. Python environment
+### 1. Install Python Dependencies
 
 ```bash
 python -m venv .venv
+```
+
+Windows:
+
+```powershell
 .venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-### 2. Run the API
+macOS/Linux:
 
 ```bash
-copy .env.example .env
-uvicorn app:app
+source .venv/bin/activate
+pip install -r requirements.txt
 ```
 
-On Windows, if you want hot reload during development, start PowerShell with:
+### 2. Download Model Artifacts
+
+Large model files are stored as GitHub Release assets rather than committed to the repository.
+
+```bash
+export CNG_ARTIFACT_BASE_URL=https://github.com/Jujun111/neural-mingzi-generator/releases/download/v1.0.0
+python scripts/download_artifacts.py
+```
+
+PowerShell:
 
 ```powershell
-$env:KMP_DUPLICATE_LIB_OK="TRUE"
-uvicorn app:app --reload --port 8001
+$env:CNG_ARTIFACT_BASE_URL="https://github.com/Jujun111/neural-mingzi-generator/releases/download/v1.0.0"
+python scripts/download_artifacts.py
 ```
 
-`--reload` can trigger a duplicate OpenMP runtime error on some Windows setups when `torch` is imported.
-
-### 3. Run the frontend
+### 3. Start the API
 
 ```bash
+cp .env.example .env
+uvicorn app:app --port 8001
+```
+
+PowerShell:
+
+```powershell
+copy .env.example .env
+uvicorn app:app --port 8001
+```
+
+API health check:
+
+```text
+http://127.0.0.1:8001/health
+```
+
+### 4. Start the Frontend
+
+```bash
+cd frontend
+cp .env.example .env
+npm install
+npm run dev
+```
+
+PowerShell:
+
+```powershell
 cd frontend
 copy .env.example .env
 npm install
 npm run dev
 ```
 
-The frontend expects the API at `http://127.0.0.1:8001` by default.
+The frontend uses `frontend/.env.example` as a template and expects the API at `http://127.0.0.1:8001` during local development.
 
-## Public API v1
+## API Snapshot
 
-Core inference endpoints:
+Core endpoints:
 
 - `GET /health`
 - `GET /models`
 - `POST /generate`
 - `POST /generate/historical-pattern`
 - `POST /generate/infill`
-- `GET /dynasties`
-- `POST /generate/dynasty`
 - `POST /compare`
 
-Evaluation and feedback endpoints:
+Evaluation and feedback:
 
-- `GET /eval/tasks?task_type=blind_pairwise|dynasty_guess`
+- `GET /eval/tasks?task_type=blind_pairwise`
+- `GET /eval/tasks?task_type=dynasty_guess`
 - `POST /feedback`
 
-Example classic generation request:
+Example request:
 
 ```bash
-curl -X POST http://127.0.0.1:8001/generate ^
-  -H "Content-Type: application/json" ^
-  -d "{\"model_type\":\"lstm\",\"count\":5,\"seed\":\"李\",\"temperature\":0.8}"
+curl -X POST http://127.0.0.1:8001/generate \
+  -H "Content-Type: application/json" \
+  -d '{"model_type":"markov","count":5,"seed":"\u674e"}'
 ```
 
-Example dynasty generation request:
+## Study Pipeline
 
-```bash
-curl -X POST http://127.0.0.1:8001/generate/dynasty ^
-  -H "Content-Type: application/json" ^
-  -d "{\"dynasty_id\":6,\"count\":5,\"seed\":\"李\"}"
-```
+The research workflow is built around fixed train/validation/test splits, repeated random seeds, structured metrics, and artifact-backed plots.
 
-## Public demo surfaces
-
-### Playground
-
-- `Classic`: direct live generation from Markov, LSTM, or Transformer
-- `Dynasty`: Markov-only dynasty mode based on curated CBDB dynasty slices
-- `Compare`: side-by-side generation with lightweight `favorite_pick` feedback
-- `Name Workshop`: fixed-token naming with two intent-aware modes
-
-`Name Workshop` has two routes:
-
-- `Historical Pattern`: uses the cleaned CBDB-derived corpus plus constrained search. It returns corpus support count, support level, sampling attempts, and cautious evidence wording.
-- `Creative Ancient-Style`: uses a template Fill-in-the-Middle decoder checkpoint for controllable creative completion. If FIM artifacts are not configured, the API returns a controlled `503` and the UI explains that creative mode is unavailable.
-
-### Evaluation Lab
-
-- `Blind Pairwise`: anonymous A/B comparison from offline pre-generated task pools
-- `Dynasty Guess`: style-recognition task from dynasty-conditioned Markov batches
-
-The client is bilingual and supports English/Chinese switching in the browser.
-
-## Feedback storage
-
-The backend expects a managed Postgres-compatible database URL for public feedback collection:
-
-```powershell
-$env:CNG_FEEDBACK_DATABASE_URL="postgresql://..."
-$env:CNG_FEEDBACK_AUTO_INIT="true"
-uvicorn app:app
-```
-
-If feedback storage is not configured, the feedback endpoint will report itself unavailable while the rest of the app still works.
-
-## Fairness-first study pipeline
-
-The deeper study workflow is centered on `study.py` and `plot_study.py`.
-
-### 1. Create the fixed split
+Common commands:
 
 ```bash
 python study.py prepare-split --db-path latest.db --split-path data/cbdb_fixed_split_v1.json
-```
-
-### 2. Run the default study sweep
-
-```bash
 python study.py run-default-study --db-path latest.db --split-path data/cbdb_fixed_split_v1.json
-```
-
-### 3. Aggregate metrics and figures
-
-```bash
 python study.py summarize --split-path data/cbdb_fixed_split_v1.json
 python plot_study.py --run-id fairness_v1
 ```
 
-### 4. Export blinded human-evaluation sheets
+The full experiment design is documented in [study_protocol.md](study_protocol.md). The public repository includes sample data for smoke tests, but the full CBDB database is not redistributed here.
 
-```bash
-python study.py export-human-eval --split-path data/cbdb_fixed_split_v1.json --temperature 0.8
-```
+## Data and Artifact Policy
 
-### 5. Export web-evaluation task pools
+- Raw CBDB database files are not committed to this repository.
+- Small sample files are included only for local smoke tests.
+- Model weights are distributed as release artifacts.
+- Study outputs are designed to be reproducible from saved configs, checkpoints, and metrics.
+- Public feedback is treated as exploratory evidence, not as a formal human-subjects study.
 
-```bash
-python study.py export-web-eval --split-path data/cbdb_fixed_split_v1.json --temperature 0.8 --output-path data/generated_eval_tasks.json
-```
+## Deployment Notes
 
-This command materializes:
+The public deployment uses:
 
-- `blind_pairwise` tasks from saved best checkpoints
-- `dynasty_guess` tasks from dynasty-specific Markov generations
+- Render Static Site for the frontend
+- Render Web Service for the FastAPI backend
+- GitHub Release assets for model files
+- Supabase/Postgres for anonymous feedback events
 
-The full protocol is documented in `study_protocol.md`.
+On Render Free, only lightweight generation is enabled to avoid memory restarts. A larger backend instance can enable the full neural demo by allowing the LSTM, Transformer, and FIM artifacts to load during inference.
 
-### 6. Train the FIM template decoder
+## Limitations
 
-The FIM route trains a conditional decoder-only Transformer. The prompt encodes the fixed token, requested position, and optional seed; loss is applied only to the full-name target after `<SEP>`.
+- The current results come from a specific cleaned historical-name dataset and a limited model-size regime.
+- Human feedback in the public app is lightweight and exploratory.
+- Historical-name plausibility does not imply modern naming quality.
+- Dynasty mode depends on local CBDB data and is not active in the public demo.
+- The free hosted backend is intentionally resource-limited; local or larger-instance runs are better for neural inference.
 
-```bash
-python study.py train-fim-template --db-path latest.db --split-path data/cbdb_fixed_split_v1.json --seed 13 --batch-size 128 --max-epochs 20
-python study.py evaluate-fim-template --db-path latest.db --split-path data/cbdb_fixed_split_v1.json --seed 13 --fixed-tokens 飞,妃,若虚 --attempts-per-sample 20
-```
+## License
 
-Deployment configuration for a trained FIM checkpoint:
-
-```powershell
-$env:CNG_ENABLE_FIM_MODE="true"
-$env:CNG_FIM_WEIGHTS="artifacts/fim_template/best.ckpt"
-$env:CNG_FIM_VOCAB="artifacts/fim_template/vocab.pkl"
-$env:CNG_FIM_CONFIG="artifacts/fim_template/config.json"
-```
-
-Set these variables only after evaluation shows an acceptable constraint satisfaction rate. Otherwise `/generate/infill` should remain disabled.
-
-## Data and artifact policy
-
-- `latest.db` is a **local-only** artifact and is ignored by `.gitignore`.
-- `data/sample_names.json` and `data/sample_eval_tasks.json` exist so the API and frontend can still smoke-test without the private CBDB dump.
-- The study pipeline writes structured artifacts under `results/<run_id>/...`.
-- Public web-eval tasks should be generated from saved study artifacts, not from live frontend requests.
-- FIM template artifacts are versioned separately from the main Markov/LSTM/Transformer checkpoints.
-
-## Deployment notes
-
-This repo is set up for a low-cost Render deployment:
-
-- frontend: Vite static app in `frontend/`
-- backend: FastAPI app served by `uvicorn`
-- deployment template: `render.yaml`
-- feedback storage: Supabase or another managed Postgres database
-
-### Release artifacts
-
-Large model files are not committed to the public repository. Prepare the files for a GitHub Release with:
-
-```bash
-python scripts/build_markov_artifact.py --db-path latest.db --output-path markov_model.pkl
-python scripts/prepare_release_artifacts.py
-```
-
-Upload everything in `release_artifacts/` to a GitHub Release, then set `CNG_ARTIFACT_BASE_URL` in Render to the release download URL:
-
-```text
-https://github.com/Jujun111/neural-mingzi-generator/releases/download/v1.0.0
-```
-
-Render downloads missing artifacts during the backend build:
-
-```bash
-python scripts/download_artifacts.py
-```
-
-### Render environment
-
-The public backend should use these Render environment variables:
-
-- `CNG_ARTIFACT_BASE_URL`: GitHub Release download URL
-- `CNG_DEVICE`: `cpu`
-- `CNG_PRELOAD_MODELS`: empty on Render Free, or `markov,lstm,transformer` on a larger paid instance
-- `CNG_REQUIRED_MODELS`: `markov` on Render Free, or `markov,lstm,transformer` on a larger paid instance
-- `CNG_DISABLED_MODELS`: `lstm,transformer` on Render Free to avoid PyTorch memory restarts
-- `CNG_ENABLE_FIM_MODE`: `false` on Render Free, or `true` on a larger paid instance
-- `CNG_ENABLE_DYNASTY_MODE`: `false`
-- `CNG_FEEDBACK_DATABASE_URL`: Supabase Postgres connection string
-- `CNG_FEEDBACK_AUTO_INIT`: `true`
-- `CNG_CORS_ORIGINS`: deployed frontend URL
-
-The public frontend should use:
-
-- `VITE_API_BASE_URL`: deployed API URL
-- `VITE_GITHUB_URL`: public GitHub repo URL
-- `VITE_BLOG_URL`: public technical blog URL
-
-### Supabase feedback
-
-Create a Supabase project and use its Postgres connection string as `CNG_FEEDBACK_DATABASE_URL`. If direct connection fails from Render because of network constraints, use the Supabase session pooler connection string instead. With `CNG_FEEDBACK_AUTO_INIT=true`, the backend creates the `feedback_events` table on startup.
-
-### Public v1 behavior
-
-- Dynasty mode is disabled in public v1 because `latest.db` is local-only.
-- On Render Free, Markov, Historical Pattern, Evaluation Lab, and feedback remain enabled. LSTM, Transformer, and Creative FIM are intentionally disabled because PyTorch inference exceeds the 512 MB free-instance memory budget.
-- On a larger backend instance, remove `CNG_DISABLED_MODELS`, restore `CNG_REQUIRED_MODELS=markov,lstm,transformer`, and set `CNG_ENABLE_FIM_MODE=true` to expose the full neural demo.
-- Feedback writes go through the FastAPI backend; the browser never receives database credentials.
-
-## Portfolio angle
-
-This project is designed to communicate four things clearly:
-
-1. I can reason about sequence models and evaluate them critically.
-2. I can turn model artifacts into a stable inference API.
-3. I can design a more rigorous experiment loop instead of relying on one-off scripts and hand-curated figures.
-4. I can connect a public-facing demo to a lightweight real-user feedback pipeline.
+This project is released under the MIT License. See [LICENSE](LICENSE).
