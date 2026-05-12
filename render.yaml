@@ -9,7 +9,7 @@ services:
       - key: CNG_DEVICE
         value: cpu
       - key: CNG_PRELOAD_MODELS
-        value: markov,lstm,transformer
+        value: ""
       - key: CNG_REQUIRED_MODELS
         value: markov,lstm,transformer
       - key: CNG_ENABLE_FIM_MODE

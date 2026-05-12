@@ -3,6 +3,7 @@ import json
 import logging
 import os
 import pickle
+import threading
 import time
 from collections import defaultdict, deque
 from dataclasses import dataclass, field
@@ -244,6 +245,7 @@ class RuntimeState:
     constraint_support_cache: Dict[Tuple[str, str], int]
     fim_status: Dict[str, Any]
     fim_model: Optional[LoadedModel] = None
+    model_load_lock: threading.Lock = field(default_factory=threading.Lock)
 
 
 class GenerationRequest(BaseModel):
@@ -519,6 +521,47 @@ def _status(available: bool, detail: str, source: Optional[str] = None) -> Dict[
     return {"available": available, "detail": detail, "source": source}
 
 
+def _model_artifact_status(settings: AppSettings, model_type: str) -> Dict[str, Any]:
+    if model_type == "markov":
+        if settings.markov_artifact_path.exists():
+            return _status(True, "Markov artifact is present and will load on demand.", str(settings.markov_artifact_path))
+        if settings.db_path.exists():
+            return _status(True, "CBDB database is present; Markov model can be built on demand.", str(settings.db_path))
+        if settings.sample_data_path.exists():
+            return _status(
+                True,
+                "Sample data is present; fallback Markov model can be built on demand.",
+                str(settings.sample_data_path),
+            )
+        return _status(False, "No Markov artifact, CBDB database, or sample dataset was found.")
+
+    if model_type == "lstm":
+        missing = [
+            str(path)
+            for path in (settings.lstm_weights_path, settings.lstm_vocab_path)
+            if not path.exists()
+        ]
+        if missing:
+            return _status(False, f"LSTM artifact is missing: {', '.join(missing)}.")
+        return _status(True, "LSTM artifacts are present and will load on demand.", str(settings.lstm_weights_path))
+
+    if model_type == "transformer":
+        missing = [
+            str(path)
+            for path in (settings.transformer_weights_path, settings.transformer_vocab_path)
+            if not path.exists()
+        ]
+        if missing:
+            return _status(False, f"Transformer artifact is missing: {', '.join(missing)}.")
+        return _status(
+            True,
+            "Transformer artifacts are present and will load on demand.",
+            str(settings.transformer_weights_path),
+        )
+
+    return _status(False, f"Unsupported model type: {model_type}.")
+
+
 def _load_sample_names(sample_data_path: Path) -> tuple[List[str], List[str]]:
     if not sample_data_path.exists():
         return [], []
@@ -626,6 +669,76 @@ def _load_markov(settings: AppSettings) -> LoadedModel:
         return _build_markov_from_pairs(sample_surnames, sample_given_names, source="sample-runtime-build")
 
     raise RuntimeError("No Markov artifact, CBDB database, or sample dataset was available.")
+
+
+def _load_model_by_type(settings: AppSettings, device: str, model_type: str) -> LoadedModel:
+    if model_type == "markov":
+        return _load_markov(settings)
+    if model_type == "lstm":
+        return _load_lstm(settings, device)
+    if model_type == "transformer":
+        return _load_transformer(settings, device)
+    raise RuntimeError(f"Unsupported model type: {model_type}.")
+
+
+def _ensure_model_loaded(runtime: RuntimeState, model_type: str) -> LoadedModel:
+    model_entry = runtime.loaded_models.get(model_type)
+    if model_entry is not None:
+        return model_entry
+
+    with runtime.model_load_lock:
+        model_entry = runtime.loaded_models.get(model_type)
+        if model_entry is not None:
+            return model_entry
+
+        LOGGER.info("Lazy loading model '%s'...", model_type)
+        try:
+            loaded_model = _load_model_by_type(runtime.settings, runtime.device, model_type)
+        except Exception as exc:  # noqa: BLE001
+            detail = f"{type(exc).__name__}: {exc}"
+            LOGGER.exception("Failed to lazy load model '%s': %s", model_type, detail)
+            runtime.model_statuses[model_type] = _status(False, detail)
+            raise HTTPException(
+                status_code=503,
+                detail=f"Requested model '{model_type}' is unavailable: {detail}",
+            ) from exc
+
+        runtime.loaded_models[model_type] = loaded_model
+        runtime.model_statuses[model_type] = _status(
+            True,
+            "Model loaded successfully.",
+            loaded_model.source,
+        )
+        return loaded_model
+
+
+def _ensure_fim_loaded(runtime: RuntimeState) -> LoadedModel:
+    if not runtime.fim_status.get("available", False):
+        detail = runtime.fim_status.get("detail") or "FIM model artifact is not available in this deployment."
+        if "FIM model artifact is not available" not in detail:
+            detail = f"FIM model artifact is not available in this deployment. {detail}"
+        raise HTTPException(status_code=503, detail=detail)
+    if runtime.fim_model is not None:
+        return runtime.fim_model
+
+    with runtime.model_load_lock:
+        if runtime.fim_model is not None:
+            return runtime.fim_model
+        LOGGER.info("Lazy loading FIM model...")
+        try:
+            runtime.fim_model = _load_fim(runtime.settings, runtime.device)
+        except Exception as exc:  # noqa: BLE001
+            detail = f"{type(exc).__name__}: {exc}"
+            LOGGER.exception("Failed to lazy load FIM model: %s", detail)
+            runtime.fim_status = {**runtime.fim_status, "available": False, "detail": detail}
+            raise HTTPException(status_code=503, detail=detail) from exc
+
+        runtime.fim_status = {
+            **runtime.fim_status,
+            "available": True,
+            "detail": "FIM model loaded successfully.",
+        }
+        return runtime.fim_model
 
 
 def _resolve_client_identifier(request: Request) -> str:
@@ -911,20 +1024,14 @@ def load_runtime(
 
     loaded_models: Dict[str, LoadedModel] = {}
     model_statuses: Dict[str, Dict[str, Any]] = {
-        model_type: _status(False, "Model was not requested for preload.")
+        model_type: _model_artifact_status(active_settings, model_type)
         for model_type in SUPPORTED_MODELS
-    }
-
-    loaders = {
-        "lstm": lambda: _load_lstm(active_settings, device),
-        "transformer": lambda: _load_transformer(active_settings, device),
-        "markov": lambda: _load_markov(active_settings),
     }
 
     for model_type in active_settings.preload_models:
         LOGGER.info("Loading model '%s'...", model_type)
         try:
-            loaded_model = loaders[model_type]()
+            loaded_model = _load_model_by_type(active_settings, device, model_type)
             loaded_models[model_type] = loaded_model
             model_statuses[model_type] = _status(True, "Model loaded successfully.", loaded_model.source)
         except Exception as exc:  # noqa: BLE001 - keep startup diagnostics concise
@@ -948,13 +1055,7 @@ def load_runtime(
     fim_status = _fim_status(active_settings)
     fim_model: Optional[LoadedModel] = None
     if fim_status["available"]:
-        try:
-            fim_model = _load_fim(active_settings, device)
-            fim_status = {**fim_status, "available": True, "detail": "FIM model loaded successfully."}
-        except Exception as exc:  # noqa: BLE001
-            detail = f"{type(exc).__name__}: {exc}"
-            LOGGER.exception("Failed to load FIM model: %s", detail)
-            fim_status = {**fim_status, "available": False, "detail": detail}
+        fim_status = {**fim_status, "detail": "FIM artifacts are present and will load on demand."}
 
     return RuntimeState(
         settings=active_settings,
@@ -1075,13 +1176,7 @@ def create_app(
             runtime.settings.generation_rate_limit_per_minute,
             "generate",
         )
-        model_entry = runtime.loaded_models.get(payload.model_type)
-
-        if model_entry is None:
-            raise HTTPException(
-                status_code=503,
-                detail=f"Requested model '{payload.model_type}' is unavailable.",
-            )
+        model_entry = _ensure_model_loaded(runtime, payload.model_type)
 
         normalized_seed, seed_was_normalized = normalize_seed_text(payload.seed, converter=runtime.converter)
         normalized_constraint_text, constraint_text_was_normalized = normalize_prompt_text(
@@ -1147,12 +1242,7 @@ def create_app(
             runtime.settings.generation_rate_limit_per_minute,
             "generate_historical_pattern",
         )
-        model_entry = runtime.loaded_models.get(payload.model_type)
-        if model_entry is None:
-            raise HTTPException(
-                status_code=503,
-                detail=f"Requested model '{payload.model_type}' is unavailable.",
-            )
+        model_entry = _ensure_model_loaded(runtime, payload.model_type)
 
         normalized_seed, seed_was_normalized = normalize_seed_text(payload.seed, converter=runtime.converter)
         normalized_fixed_token, fixed_token_was_normalized = normalize_prompt_text(
@@ -1276,14 +1366,10 @@ def create_app(
         support_level = _support_level(support_count)
         notice = _creative_mode_notice(support_level)
 
-        if not runtime.fim_status.get("available", False) or runtime.fim_model is None:
-            raise HTTPException(
-                status_code=503,
-                detail="FIM model artifact is not available in this deployment.",
-            )
+        fim_model = _ensure_fim_loaded(runtime)
 
         normalized_seed, _ = normalize_seed_text(payload.seed, converter=runtime.converter)
-        vocab_payload = runtime.fim_model.vocab
+        vocab_payload = fim_model.vocab
         vocab = vocab_payload["vocab"]
         allowed_output_indices = vocab_payload.get("allowed_output_indices")
         config = vocab_payload.get("config", {})
@@ -1293,7 +1379,7 @@ def create_app(
             candidate = ""
             for _attempt in range(20):
                 candidate = generate_fim_name(
-                    model=runtime.fim_model.instance,
+                    model=fim_model.instance,
                     vocab=vocab,
                     fixed_token=normalized_fixed_token,
                     position=payload.position,
@@ -1410,10 +1496,10 @@ def create_app(
         )
         results: List[CompareCandidateResponse] = []
         for model_type in SUPPORTED_MODELS:
-            model_entry = runtime.loaded_models.get(model_type)
-            if model_entry is None:
+            if not runtime.model_statuses.get(model_type, {}).get("available", False):
                 continue
             try:
+                model_entry = _ensure_model_loaded(runtime, model_type)
                 generations, active_temperature = _generate_from_model(
                     model_entry=model_entry,
                     model_type=model_type,

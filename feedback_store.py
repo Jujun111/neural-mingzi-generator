@@ -114,12 +114,13 @@ class MemoryFeedbackStore(BaseFeedbackStore):
 
 
 class PostgresFeedbackStore(BaseFeedbackStore):
-    def __init__(self, database_url: str, auto_init: bool = False):
+    def __init__(self, database_url: str, auto_init: bool = False, connect_timeout_seconds: int = 5):
         if psycopg is None:
             raise RuntimeError(
                 "psycopg is not installed. Install requirements with the postgres extras to enable feedback storage."
             )
         self.database_url = database_url
+        self.connect_timeout_seconds = connect_timeout_seconds
         if auto_init:
             self.ensure_schema()
 
@@ -130,14 +131,14 @@ class PostgresFeedbackStore(BaseFeedbackStore):
         return "Managed Postgres feedback store is active."
 
     def ensure_schema(self) -> None:
-        with psycopg.connect(self.database_url) as connection:
+        with psycopg.connect(self.database_url, connect_timeout=self.connect_timeout_seconds) as connection:
             with connection.cursor() as cursor:
                 cursor.execute(CREATE_FEEDBACK_EVENTS_SQL)
             connection.commit()
 
     def record_event(self, event: StoredFeedbackEvent) -> Dict[str, Any]:
         payload = event.to_record()
-        with psycopg.connect(self.database_url) as connection:
+        with psycopg.connect(self.database_url, connect_timeout=self.connect_timeout_seconds) as connection:
             with connection.cursor() as cursor:
                 cursor.execute(
                     """
