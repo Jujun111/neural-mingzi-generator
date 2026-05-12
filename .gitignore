@@ -1,0 +1,36 @@
+__pycache__/
+*.pyc
+.pytest_cache/
+pytest-cache-files-*/
+.venv/
+venv/
+.env
+.env.*
+!.env.example
+node_modules/
+frontend/node_modules/
+frontend/dist/
+frontend/.env
+frontend/.env.*
+!frontend/.env.example
+*.tsbuildinfo
+dist/
+
+# Large local artifacts
+latest.db
+markov_model.pkl
+*.pth
+*.ckpt
+*.pkl
+artifacts/
+results/
+release_artifacts/
+data/cbdb_fixed_split_v1.json
+*.log
+
+# Local build outputs
+real_convergence_plot.png
+convergence_plot.png
+
+# Local scratch directories
+tmp*/

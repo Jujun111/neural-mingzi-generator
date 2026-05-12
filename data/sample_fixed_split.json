@@ -1,0 +1,29 @@
+{
+  "split_name": "sample_fixed_v1",
+  "split_seed": 20260419,
+  "dataset_size": 10,
+  "dataset_signature": "6d91e3828f32270deeb2345ca3bfc7b98f8d6b90",
+  "ratios": {
+    "train": 0.8,
+    "val": 0.1,
+    "test": 0.1
+  },
+  "indices": {
+    "train": [
+      1,
+      2,
+      8,
+      3,
+      4,
+      9,
+      0,
+      6
+    ],
+    "val": [
+      5
+    ],
+    "test": [
+      7
+    ]
+  }
+}

@@ -1,0 +1,92 @@
+{
+  "version": "1.0",
+  "run_id": "sample_eval_v1",
+  "task_pools": {
+    "blind_pairwise": [
+      {
+        "task_id": "bp_001",
+        "task_type": "blind_pairwise",
+        "run_id": "sample_eval_v1",
+        "checkpoint_id": "blind_pairwise_primary_sample",
+        "prompt_type": "unprompted",
+        "title": "Blind Pairwise",
+        "prompt": "Which batch feels more like plausible Chinese names?",
+        "presented_payload": {
+          "left": {
+            "label": "A",
+            "names": ["李清照", "王景行", "张知远", "陈子昂"]
+          },
+          "right": {
+            "label": "B",
+            "names": ["李清石", "王明遥", "张若川", "陈安临"]
+          }
+        },
+        "response_options": ["left", "right", "tie", "skip"],
+        "hidden_answer": {
+          "left_model_type": "lstm",
+          "right_model_type": "transformer"
+        }
+      },
+      {
+        "task_id": "bp_002",
+        "task_type": "blind_pairwise",
+        "run_id": "sample_eval_v1",
+        "checkpoint_id": "blind_pairwise_primary_sample",
+        "prompt_type": "surname_prompted",
+        "title": "Blind Pairwise",
+        "prompt": "Which batch feels more like plausible Chinese names?",
+        "presented_payload": {
+          "left": {
+            "label": "A",
+            "names": ["欧阳子衿", "欧阳景行", "欧阳知远", "欧阳若虚"]
+          },
+          "right": {
+            "label": "B",
+            "names": ["欧阳清川", "欧阳子岚", "欧阳明舟", "欧阳安闻"]
+          }
+        },
+        "response_options": ["left", "right", "tie", "skip"],
+        "hidden_answer": {
+          "left_model_type": "lstm",
+          "right_model_type": "transformer"
+        }
+      }
+    ],
+    "dynasty_guess": [
+      {
+        "task_id": "dg_001",
+        "task_type": "dynasty_guess",
+        "run_id": "sample_eval_v1",
+        "checkpoint_id": "dynasty_markov_sample",
+        "prompt_type": "dynasty_style",
+        "title": "Dynasty Guess",
+        "prompt": "Which dynasty does this batch feel closest to?",
+        "presented_payload": {
+          "names": ["李景行", "王若虚", "张子昂", "赵知远"]
+        },
+        "response_options": ["Tang", "Song", "Ming", "Qing", "skip"],
+        "hidden_answer": {
+          "dynasty_id": 6,
+          "dynasty_code": "Tang"
+        }
+      },
+      {
+        "task_id": "dg_002",
+        "task_type": "dynasty_guess",
+        "run_id": "sample_eval_v1",
+        "checkpoint_id": "dynasty_markov_sample",
+        "prompt_type": "dynasty_style",
+        "title": "Dynasty Guess",
+        "prompt": "Which dynasty does this batch feel closest to?",
+        "presented_payload": {
+          "names": ["沈明轩", "白元芳", "林安之", "陈清照"]
+        },
+        "response_options": ["Tang", "Song", "Ming", "Qing", "skip"],
+        "hidden_answer": {
+          "dynasty_id": 19,
+          "dynasty_code": "Ming"
+        }
+      }
+    ]
+  }
+}

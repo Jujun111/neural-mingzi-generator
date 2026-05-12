@@ -1,0 +1,36 @@
+{
+  "artifacts": [
+    {
+      "asset": "lstm_weights.pth",
+      "path": "lstm_weights.pth"
+    },
+    {
+      "asset": "vocab.pkl",
+      "path": "vocab.pkl"
+    },
+    {
+      "asset": "transformer_weights.pth",
+      "path": "transformer_weights.pth"
+    },
+    {
+      "asset": "transformer_vocab.pkl",
+      "path": "transformer_vocab.pkl"
+    },
+    {
+      "asset": "markov_model.pkl",
+      "path": "markov_model.pkl"
+    },
+    {
+      "asset": "fim_template_best.ckpt",
+      "path": "artifacts/fim_template/best.ckpt"
+    },
+    {
+      "asset": "fim_template_vocab.pkl",
+      "path": "artifacts/fim_template/vocab.pkl"
+    },
+    {
+      "asset": "fim_template_config.json",
+      "path": "artifacts/fim_template/config.json"
+    }
+  ]
+}

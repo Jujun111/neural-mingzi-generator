@@ -1,0 +1,52 @@
+services:
+  - type: web
+    name: chinese-name-generator-api
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt && python scripts/download_artifacts.py
+    startCommand: uvicorn app:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: CNG_DEVICE
+        value: cpu
+      - key: CNG_PRELOAD_MODELS
+        value: markov,lstm,transformer
+      - key: CNG_REQUIRED_MODELS
+        value: markov,lstm,transformer
+      - key: CNG_ENABLE_FIM_MODE
+        value: "true"
+      - key: CNG_ENABLE_DYNASTY_MODE
+        value: "false"
+      - key: CNG_FIM_WEIGHTS
+        value: artifacts/fim_template/best.ckpt
+      - key: CNG_FIM_VOCAB
+        value: artifacts/fim_template/vocab.pkl
+      - key: CNG_FIM_CONFIG
+        value: artifacts/fim_template/config.json
+      - key: CNG_EVAL_TASK_POOL
+        value: data/sample_eval_tasks.json
+      - key: CNG_CORS_ORIGINS
+        value: https://chinese-name-generator-frontend.onrender.com
+      - key: CNG_ARTIFACT_BASE_URL
+        sync: false
+      - key: CNG_FEEDBACK_DATABASE_URL
+        sync: false
+      - key: CNG_FEEDBACK_AUTO_INIT
+        value: "true"
+      - key: CNG_APP_VERSION
+        value: public_v1
+      - key: CNG_PUBLIC_RUN_ID
+        value: public_demo_v1
+
+  - type: web
+    name: chinese-name-generator-frontend
+    runtime: static
+    rootDir: frontend
+    buildCommand: npm install && npm run build
+    staticPublishPath: dist
+    envVars:
+      - key: VITE_API_BASE_URL
+        value: https://chinese-name-generator-api.onrender.com
+      - key: VITE_GITHUB_URL
+        value: https://github.com/Jujun111/neural-mingzi-generator
+      - key: VITE_BLOG_URL
+        value: https://github.com/Jujun111/neural-mingzi-generator/blob/main/technical_blog.md
