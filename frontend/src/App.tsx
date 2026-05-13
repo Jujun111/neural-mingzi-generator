@@ -38,7 +38,9 @@ const SESSION_STORAGE_KEY = "cng.session_id";
 const modelOrder: ModelType[] = ["markov", "lstm", "transformer"];
 const constraintPositionOrder: ConstraintPosition[] = ["any", "start", "middle", "end"];
 const REPO_URL = import.meta.env.VITE_GITHUB_URL ?? "https://github.com/";
-const BLOG_URL = import.meta.env.VITE_BLOG_URL ?? "/technical_blog.md";
+const BLOG_URL =
+  import.meta.env.VITE_BLOG_URL ??
+  "https://github.com/Jujun111/neural-mingzi-generator/blob/main/technical_blog.pdf";
 
 function createSessionId(): string {
   if (globalThis.crypto?.randomUUID) {

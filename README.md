@@ -12,7 +12,7 @@ The project includes a bilingual web demo, a FastAPI inference service, a React 
 
 - Web app: https://chinese-name-generator-frontend.onrender.com
 - API health: https://chinese-name-generator-api.onrender.com/health
-- Technical write-up: [technical_blog.md](technical_blog.md)
+- Technical report: [technical_blog.pdf](technical_blog.pdf)
 
 The public demo currently runs on a free Render instance. To keep the service stable within the free memory limit, the hosted version enables Markov generation and feedback collection by default. Neural checkpoints are included as project artifacts and can be run locally or on a larger backend instance.
 
@@ -61,7 +61,7 @@ flowchart LR
 - `frontend/`: React + TypeScript web client
 - `study.py`: training, evaluation, ablation, FIM, and task-pool export commands
 - `plot_study.py`: study figure generation
-- `technical_blog.md`: long-form technical write-up
+- `technical_blog.pdf`: long-form technical report with embedded figures
 - `study_protocol.md`: experiment design notes
 - `data/sample_names.json`: tiny sample data for smoke tests
 - `data/sample_eval_tasks.json`: small sample task pool for the Evaluation Lab

@@ -63,4 +63,4 @@ services:
       - key: VITE_GITHUB_URL
         value: https://github.com/Jujun111/neural-mingzi-generator
       - key: VITE_BLOG_URL
-        value: https://github.com/Jujun111/neural-mingzi-generator/blob/main/technical_blog.md
+        value: https://github.com/Jujun111/neural-mingzi-generator/blob/main/technical_blog.pdf
