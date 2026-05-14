@@ -84,6 +84,18 @@ MODEL_SPECS: Dict[str, ModelSpec] = {
         num_layers=2,
         description="Smaller LSTM matched to the small Transformer within a tight parameter budget.",
     ),
+    "lstm_small_tuned": ModelSpec(
+        name="lstm_small_tuned",
+        family="lstm",
+        size_tier="small_matched_tuned",
+        embedding_dim=160,
+        hidden_size=320,
+        num_layers=2,
+        description=(
+            "Same architecture as lstm_small_matched, reserved for LSTM-tuned optimization "
+            "and dropout sensitivity checks."
+        ),
+    ),
     "lstm_large": ModelSpec(
         name="lstm_large",
         family="lstm",
@@ -115,6 +127,7 @@ DEFAULT_STUDY_MODELS = (
     "transformer_large_matched",
 )
 AVAILABLE_STUDY_MODELS = tuple(MODEL_SPECS.keys())
+LSTM_TUNED_BASELINE = "lstm_small_tuned"
 TRANSFORMER_TUNED_BASELINE = "transformer_small_tuned"
 DEFAULT_STUDY_SEEDS = (13, 37, 73)
 DEFAULT_DATA_FRACTIONS = (0.1, 0.3, 1.0)

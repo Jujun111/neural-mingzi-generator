@@ -36,6 +36,19 @@ class StudyConfigTests(unittest.TestCase):
             count_trainable_parameters(tuned),
         )
 
+    def test_tuned_lstm_keeps_small_lstm_architecture(self):
+        baseline = get_model_spec("lstm_small_matched")
+        tuned = get_model_spec("lstm_small_tuned")
+
+        self.assertEqual(baseline.family, tuned.family)
+        self.assertEqual(baseline.embedding_dim, tuned.embedding_dim)
+        self.assertEqual(baseline.hidden_size, tuned.hidden_size)
+        self.assertEqual(baseline.num_layers, tuned.num_layers)
+        self.assertEqual(
+            count_trainable_parameters(baseline),
+            count_trainable_parameters(tuned),
+        )
+
     def test_default_prompts_include_expected_compound_surnames(self):
         self.assertIn("欧阳", DEFAULT_PROMPTS)
         self.assertIn("司马", DEFAULT_PROMPTS)

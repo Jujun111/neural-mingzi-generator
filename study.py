@@ -29,6 +29,7 @@ from study_configs import (
     DEFAULT_STUDY_MODELS,
     DEFAULT_STUDY_SEEDS,
     DEFAULT_TEMPERATURES,
+    LSTM_TUNED_BASELINE,
     PRIMARY_MATCHED_PAIR,
     ROBUSTNESS_MATCHED_PAIR,
     TRANSFORMER_TUNED_BASELINE,
@@ -1510,6 +1511,30 @@ def run_transformer_tuned_baseline_command(args) -> None:
     summarize_command(args)
 
 
+def run_lstm_tuned_baseline_command(args) -> None:
+    """Run the LSTM tuning symmetry check raised by reviewer feedback."""
+    seeds = parse_csv_ints(args.seeds)
+    temperatures = parse_csv_floats(args.temperatures)
+
+    for seed in seeds:
+        train_args = argparse.Namespace(**vars(args))
+        train_args.model_spec = LSTM_TUNED_BASELINE
+        train_args.seed = seed
+        train_args.fraction = 1.0
+        train_command(train_args)
+
+        for temperature in temperatures:
+            eval_args = argparse.Namespace(**vars(args))
+            eval_args.model_spec = LSTM_TUNED_BASELINE
+            eval_args.seed = seed
+            eval_args.fraction = 1.0
+            eval_args.temperature = temperature
+            eval_args.checkpoint = "best"
+            evaluate_command(eval_args)
+
+    summarize_command(args)
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Study pipeline for the Chinese Name Generator project.")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -1697,6 +1722,32 @@ def build_parser() -> argparse.ArgumentParser:
     transformer_tuned_parser.add_argument("--patience", type=int, default=5)
     transformer_tuned_parser.add_argument("--dropout-prob", type=float, default=0.1)
     transformer_tuned_parser.set_defaults(func=run_transformer_tuned_baseline_command)
+
+    lstm_tuned_parser = subparsers.add_parser(
+        "run-lstm-tuned-baseline",
+        parents=[common],
+        help=(
+            "Run the reviewer-requested LSTM tuning symmetry check. "
+            "This keeps the architecture matched and changes only the optimization/dropout recipe."
+        ),
+    )
+    lstm_tuned_parser.add_argument("--seeds", default=",".join(str(seed) for seed in DEFAULT_STUDY_SEEDS))
+    lstm_tuned_parser.add_argument("--temperatures", default="0.8")
+    lstm_tuned_parser.add_argument("--sample-count", type=int, default=2000)
+    lstm_tuned_parser.add_argument("--prompted-sample-count", type=int, default=250)
+    lstm_tuned_parser.add_argument("--prompts", default=",".join(DEFAULT_PROMPTS))
+    lstm_tuned_parser.add_argument("--checkpoint", choices=["best", "final"], default="best")
+    lstm_tuned_parser.add_argument("--learning-rate", type=float, default=0.001)
+    lstm_tuned_parser.add_argument("--optimizer", choices=["adam", "adamw"], default="adamw")
+    lstm_tuned_parser.add_argument("--weight-decay", type=float, default=0.01)
+    lstm_tuned_parser.add_argument("--lr-scheduler", choices=["flat", "warmup-cosine"], default="flat")
+    lstm_tuned_parser.add_argument("--warmup-steps", type=int, default=None)
+    lstm_tuned_parser.add_argument("--warmup-ratio", type=float, default=0.1)
+    lstm_tuned_parser.add_argument("--min-lr-ratio", type=float, default=0.1)
+    lstm_tuned_parser.add_argument("--max-epochs", type=int, default=40)
+    lstm_tuned_parser.add_argument("--patience", type=int, default=5)
+    lstm_tuned_parser.add_argument("--dropout-prob", type=float, default=0.2)
+    lstm_tuned_parser.set_defaults(func=run_lstm_tuned_baseline_command)
 
     return parser
 

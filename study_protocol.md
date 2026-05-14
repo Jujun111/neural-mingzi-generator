@@ -216,7 +216,33 @@ python study.py run-transformer-tuned-baseline --run-id fairness_v1_transformer_
 
 Interpretation rule: if the tuned Transformer closes or reverses the gap, the previous result should be reported as a training-recipe finding, not an architecture finding. If the LSTM still wins, the micro-sequence inductive-bias claim becomes much stronger.
 
-### 6. Export human evaluation sheets
+### 6. Run the LSTM tuning symmetry check
+
+After tuning the Transformer, rerun the same LSTM architecture under a light tuned recipe so the residual gap is not based on `Transformer tuned` vs `LSTM untuned`.
+
+Default LSTM symmetry check:
+
+- model spec: `lstm_small_tuned`
+- optimizer: `AdamW`
+- learning rate: `1e-3`
+- scheduler: flat
+- dropout: `0.2`
+- seeds: `13,37,73`
+- data fraction: `100%`
+
+```bash
+python study.py run-lstm-tuned-baseline --run-id fairness_v1_lstm_tuned_d02 --split-path data/cbdb_fixed_split_v1.json --db-path latest.db
+```
+
+Optional lower-dropout check:
+
+```bash
+python study.py run-lstm-tuned-baseline --run-id fairness_v1_lstm_tuned_d01 --split-path data/cbdb_fixed_split_v1.json --db-path latest.db --dropout-prob 0.1
+```
+
+Interpretation rule: if the LSTM improves materially under lighter dropout or AdamW, update the residual-gap figure and report the comparison as tuned LSTM vs tuned Transformer. If it does not improve, the report can say that the LSTM achieved its score without the Transformer-specific warmup/cosine tuning.
+
+### 7. Export human evaluation sheets
 
 ```bash
 python study.py export-human-eval --split-path data/cbdb_fixed_split_v1.json --temperature 0.8
@@ -258,4 +284,5 @@ The next version of the blog should follow this order:
 - Do not claim strong causality from a single metric.
 - Use matched-pair results for the main architecture claim.
 - Do not publish the LSTM-vs-Transformer claim without reporting the Transformer-tuned warmup/cosine check.
+- Do not publish the residual LSTM edge without either running the LSTM tuning symmetry check or explicitly labeling the LSTM as less tuned.
 - Treat human evaluation as supporting evidence, not as a license to overclaim.
