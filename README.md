@@ -40,7 +40,7 @@ Chinese names are very short sequences, but they are not simple strings. A gener
 
 That makes the task a useful stress test for a common assumption in modern sequence modeling: bigger contextual architectures are not always automatically better when the sequence is extremely short and constrained. The current study asks whether recurrent inductive bias can remain competitive in this micro-sequence setting.
 
-The main result is intentionally framed cautiously: in this dataset and model-size regime, the LSTM was stronger than the small causal Transformer on several automatic metrics. This should be read as evidence from one controlled experimental setup, not as a universal claim about Chinese name generation or Transformer architectures.
+The main result is intentionally framed cautiously: the original Transformer gap was mostly explained by optimization, while the LSTM remained slightly ahead after a light tuning-symmetry check. This should be read as evidence from one controlled experimental setup, not as a universal claim about Chinese name generation or Transformer architectures.
 
 ## System Overview
 
