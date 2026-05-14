@@ -192,7 +192,31 @@ python study.py summarize --split-path data/cbdb_fixed_split_v1.json
 python plot_study.py --run-id fairness_v1
 ```
 
-### 5. Export human evaluation sheets
+### 5. Run the Transformer-tuned optimization check
+
+Reviewer feedback identified the original flat-Adam Transformer recipe as a major confounder. Before making a strong architecture claim, run a tuned Transformer baseline with the same architecture as `transformer_small` but a Transformer-appropriate optimization recipe:
+
+- model spec: `transformer_small_tuned`
+- optimizer: `AdamW`
+- peak learning rate: `5e-4` by default
+- scheduler: linear warmup over the first `10%` of optimizer steps, then cosine decay
+- dropout: `0.1`
+- seeds: `13,37,73`
+- data fraction: `100%`
+
+```bash
+python study.py run-transformer-tuned-baseline --run-id fairness_v1_transformer_tuned --split-path data/cbdb_fixed_split_v1.json --db-path latest.db
+```
+
+Optional higher-peak-LR check:
+
+```bash
+python study.py run-transformer-tuned-baseline --run-id fairness_v1_transformer_tuned_lr1e3 --split-path data/cbdb_fixed_split_v1.json --db-path latest.db --learning-rate 0.001
+```
+
+Interpretation rule: if the tuned Transformer closes or reverses the gap, the previous result should be reported as a training-recipe finding, not an architecture finding. If the LSTM still wins, the micro-sequence inductive-bias claim becomes much stronger.
+
+### 6. Export human evaluation sheets
 
 ```bash
 python study.py export-human-eval --split-path data/cbdb_fixed_split_v1.json --temperature 0.8
@@ -233,4 +257,5 @@ The next version of the blog should follow this order:
 - Do not present a single lucky seed as the headline result.
 - Do not claim strong causality from a single metric.
 - Use matched-pair results for the main architecture claim.
+- Do not publish the LSTM-vs-Transformer claim without reporting the Transformer-tuned warmup/cosine check.
 - Treat human evaluation as supporting evidence, not as a license to overclaim.

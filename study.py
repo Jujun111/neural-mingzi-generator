@@ -6,7 +6,7 @@ import pickle
 import random
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Dict, Iterable, List, Sequence
+from typing import Dict, Iterable, List, Optional, Sequence
 
 import numpy as np
 import opencc
@@ -23,6 +23,7 @@ from inference import (
 )
 from model import ChineseNameTransformer
 from study_configs import (
+    AVAILABLE_STUDY_MODELS,
     DEFAULT_DATA_FRACTIONS,
     DEFAULT_PROMPTS,
     DEFAULT_STUDY_MODELS,
@@ -30,6 +31,7 @@ from study_configs import (
     DEFAULT_TEMPERATURES,
     PRIMARY_MATCHED_PAIR,
     ROBUSTNESS_MATCHED_PAIR,
+    TRANSFORMER_TUNED_BASELINE,
     build_markov_model,
     count_trainable_parameters,
     get_model_spec,
@@ -138,11 +140,54 @@ def resolve_parameter_count(
 
 def save_history_csv(path: Path, history_rows: Sequence[Dict[str, float]]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    fieldnames = ["epoch", "train_loss", "train_perplexity", "val_loss", "val_perplexity", "is_best"]
+    fieldnames = ["epoch", "train_loss", "train_perplexity", "val_loss", "val_perplexity", "learning_rate", "is_best"]
     with path.open("w", encoding="utf-8", newline="") as handle:
         writer = csv.DictWriter(handle, fieldnames=fieldnames)
         writer.writeheader()
         writer.writerows(history_rows)
+
+
+def build_optimizer(
+    model: torch.nn.Module,
+    optimizer_name: str,
+    learning_rate: float,
+    weight_decay: float,
+) -> torch.optim.Optimizer:
+    if optimizer_name == "adam":
+        return torch.optim.Adam(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
+    if optimizer_name == "adamw":
+        return torch.optim.AdamW(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
+    raise ValueError(f"Unsupported optimizer '{optimizer_name}'.")
+
+
+def build_lr_scheduler(
+    optimizer: torch.optim.Optimizer,
+    scheduler_name: str,
+    total_steps: int,
+    warmup_steps: Optional[int],
+    warmup_ratio: float,
+    min_lr_ratio: float,
+):
+    if scheduler_name == "flat":
+        return None, 0
+
+    if scheduler_name != "warmup-cosine":
+        raise ValueError(f"Unsupported learning-rate scheduler '{scheduler_name}'.")
+
+    resolved_warmup_steps = warmup_steps
+    if resolved_warmup_steps is None:
+        resolved_warmup_steps = max(1, int(total_steps * warmup_ratio))
+    resolved_warmup_steps = max(1, min(resolved_warmup_steps, max(total_steps - 1, 1)))
+
+    def lr_lambda(step: int) -> float:
+        active_step = step + 1
+        if active_step <= resolved_warmup_steps:
+            return active_step / resolved_warmup_steps
+        progress = (active_step - resolved_warmup_steps) / max(total_steps - resolved_warmup_steps, 1)
+        cosine = 0.5 * (1.0 + math.cos(math.pi * min(progress, 1.0)))
+        return min_lr_ratio + (1.0 - min_lr_ratio) * cosine
+
+    return torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=lr_lambda), resolved_warmup_steps
 
 
 def prepare_dataloaders(
@@ -179,6 +224,12 @@ def run_neural_training(
     fraction: float,
     split_name: str,
     learning_rate: float,
+    optimizer_name: str,
+    weight_decay: float,
+    lr_scheduler: str,
+    warmup_steps: Optional[int],
+    warmup_ratio: float,
+    min_lr_ratio: float,
     max_epochs: int,
     patience: int,
     dropout_prob: float,
@@ -186,7 +237,21 @@ def run_neural_training(
     spec = get_model_spec(spec_name)
     set_random_seed(seed)
     model = spec.build_model(vocab_size=len(vocab), pad_idx=vocab.PAD_IDX, dropout_prob=dropout_prob).to(device)
-    optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
+    optimizer = build_optimizer(
+        model=model,
+        optimizer_name=optimizer_name,
+        learning_rate=learning_rate,
+        weight_decay=weight_decay,
+    )
+    total_steps = max(1, len(dataloaders["train"]) * max_epochs)
+    scheduler, resolved_warmup_steps = build_lr_scheduler(
+        optimizer=optimizer,
+        scheduler_name=lr_scheduler,
+        total_steps=total_steps,
+        warmup_steps=warmup_steps,
+        warmup_ratio=warmup_ratio,
+        min_lr_ratio=min_lr_ratio,
+    )
     criterion = torch.nn.CrossEntropyLoss(ignore_index=vocab.PAD_IDX, reduction="sum")
 
     history_rows = []
@@ -203,6 +268,13 @@ def run_neural_training(
         "fraction": fraction,
         "split_name": split_name,
         "learning_rate": learning_rate,
+        "optimizer": optimizer_name,
+        "weight_decay": weight_decay,
+        "lr_scheduler": lr_scheduler,
+        "warmup_steps": resolved_warmup_steps,
+        "warmup_ratio": warmup_ratio,
+        "min_lr_ratio": min_lr_ratio,
+        "total_optimizer_steps": total_steps,
         "max_epochs": max_epochs,
         "patience": patience,
         "dropout_prob": dropout_prob,
@@ -226,6 +298,8 @@ def run_neural_training(
             loss.backward()
             torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=5.0)
             optimizer.step()
+            if scheduler is not None:
+                scheduler.step()
 
             total_loss += float(loss.item())
             total_tokens += int((y_flat != vocab.PAD_IDX).sum().item())
@@ -260,6 +334,7 @@ def run_neural_training(
                 "train_perplexity": round(math.exp(train_loss), 8),
                 "val_loss": round(val_stats["cross_entropy"], 8),
                 "val_perplexity": round(val_stats["perplexity"], 8),
+                "learning_rate": round(float(optimizer.param_groups[0]["lr"]), 12),
                 "is_best": int(is_best),
             }
         )
@@ -501,6 +576,12 @@ def train_command(args) -> None:
         fraction=args.fraction,
         split_name=split_name,
         learning_rate=args.learning_rate,
+        optimizer_name=args.optimizer,
+        weight_decay=args.weight_decay,
+        lr_scheduler=args.lr_scheduler,
+        warmup_steps=args.warmup_steps,
+        warmup_ratio=args.warmup_ratio,
+        min_lr_ratio=args.min_lr_ratio,
         max_epochs=args.max_epochs,
         patience=args.patience,
         dropout_prob=args.dropout_prob,
@@ -1405,6 +1486,30 @@ def run_default_study_command(args) -> None:
     summarize_command(args)
 
 
+def run_transformer_tuned_baseline_command(args) -> None:
+    """Run the targeted Transformer optimization check raised by reviewer feedback."""
+    seeds = parse_csv_ints(args.seeds)
+    temperatures = parse_csv_floats(args.temperatures)
+
+    for seed in seeds:
+        train_args = argparse.Namespace(**vars(args))
+        train_args.model_spec = TRANSFORMER_TUNED_BASELINE
+        train_args.seed = seed
+        train_args.fraction = 1.0
+        train_command(train_args)
+
+        for temperature in temperatures:
+            eval_args = argparse.Namespace(**vars(args))
+            eval_args.model_spec = TRANSFORMER_TUNED_BASELINE
+            eval_args.seed = seed
+            eval_args.fraction = 1.0
+            eval_args.temperature = temperature
+            eval_args.checkpoint = "best"
+            evaluate_command(eval_args)
+
+    summarize_command(args)
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Study pipeline for the Chinese Name Generator project.")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -1446,10 +1551,16 @@ def build_parser() -> argparse.ArgumentParser:
     common.add_argument("--max-seq-len", type=int, default=6)
 
     train_parser = subparsers.add_parser("train", parents=[common], help="Train a single study run.")
-    train_parser.add_argument("--model-spec", required=True, choices=list(DEFAULT_STUDY_MODELS))
+    train_parser.add_argument("--model-spec", required=True, choices=list(AVAILABLE_STUDY_MODELS))
     train_parser.add_argument("--seed", type=int, required=True)
     train_parser.add_argument("--fraction", type=float, default=1.0)
     train_parser.add_argument("--learning-rate", type=float, default=0.001)
+    train_parser.add_argument("--optimizer", choices=["adam", "adamw"], default="adam")
+    train_parser.add_argument("--weight-decay", type=float, default=0.0)
+    train_parser.add_argument("--lr-scheduler", choices=["flat", "warmup-cosine"], default="flat")
+    train_parser.add_argument("--warmup-steps", type=int, default=None)
+    train_parser.add_argument("--warmup-ratio", type=float, default=0.1)
+    train_parser.add_argument("--min-lr-ratio", type=float, default=0.1)
     train_parser.add_argument("--max-epochs", type=int, default=40)
     train_parser.add_argument("--patience", type=int, default=5)
     train_parser.add_argument("--dropout-prob", type=float, default=0.4)
@@ -1494,7 +1605,7 @@ def build_parser() -> argparse.ArgumentParser:
     fim_eval_parser.set_defaults(func=evaluate_fim_template_command)
 
     evaluate_parser = subparsers.add_parser("evaluate", parents=[common], help="Evaluate a trained study run.")
-    evaluate_parser.add_argument("--model-spec", required=True, choices=list(DEFAULT_STUDY_MODELS))
+    evaluate_parser.add_argument("--model-spec", required=True, choices=list(AVAILABLE_STUDY_MODELS))
     evaluate_parser.add_argument("--seed", type=int, required=True)
     evaluate_parser.add_argument("--fraction", type=float, default=1.0)
     evaluate_parser.add_argument("--temperature", type=float, default=0.8)
@@ -1550,10 +1661,42 @@ def build_parser() -> argparse.ArgumentParser:
     default_study_parser.add_argument("--prompts", default=",".join(DEFAULT_PROMPTS))
     default_study_parser.add_argument("--checkpoint", choices=["best", "final"], default="best")
     default_study_parser.add_argument("--learning-rate", type=float, default=0.001)
+    default_study_parser.add_argument("--optimizer", choices=["adam", "adamw"], default="adam")
+    default_study_parser.add_argument("--weight-decay", type=float, default=0.0)
+    default_study_parser.add_argument("--lr-scheduler", choices=["flat", "warmup-cosine"], default="flat")
+    default_study_parser.add_argument("--warmup-steps", type=int, default=None)
+    default_study_parser.add_argument("--warmup-ratio", type=float, default=0.1)
+    default_study_parser.add_argument("--min-lr-ratio", type=float, default=0.1)
     default_study_parser.add_argument("--max-epochs", type=int, default=40)
     default_study_parser.add_argument("--patience", type=int, default=5)
     default_study_parser.add_argument("--dropout-prob", type=float, default=0.4)
     default_study_parser.set_defaults(func=run_default_study_command)
+
+    transformer_tuned_parser = subparsers.add_parser(
+        "run-transformer-tuned-baseline",
+        parents=[common],
+        help=(
+            "Run the reviewer-requested Transformer baseline with warmup/cosine scheduling. "
+            "This keeps the architecture matched and changes only the optimization recipe."
+        ),
+    )
+    transformer_tuned_parser.add_argument("--seeds", default=",".join(str(seed) for seed in DEFAULT_STUDY_SEEDS))
+    transformer_tuned_parser.add_argument("--temperatures", default="0.8")
+    transformer_tuned_parser.add_argument("--sample-count", type=int, default=2000)
+    transformer_tuned_parser.add_argument("--prompted-sample-count", type=int, default=250)
+    transformer_tuned_parser.add_argument("--prompts", default=",".join(DEFAULT_PROMPTS))
+    transformer_tuned_parser.add_argument("--checkpoint", choices=["best", "final"], default="best")
+    transformer_tuned_parser.add_argument("--learning-rate", type=float, default=0.0005)
+    transformer_tuned_parser.add_argument("--optimizer", choices=["adam", "adamw"], default="adamw")
+    transformer_tuned_parser.add_argument("--weight-decay", type=float, default=0.01)
+    transformer_tuned_parser.add_argument("--lr-scheduler", choices=["flat", "warmup-cosine"], default="warmup-cosine")
+    transformer_tuned_parser.add_argument("--warmup-steps", type=int, default=None)
+    transformer_tuned_parser.add_argument("--warmup-ratio", type=float, default=0.1)
+    transformer_tuned_parser.add_argument("--min-lr-ratio", type=float, default=0.1)
+    transformer_tuned_parser.add_argument("--max-epochs", type=int, default=40)
+    transformer_tuned_parser.add_argument("--patience", type=int, default=5)
+    transformer_tuned_parser.add_argument("--dropout-prob", type=float, default=0.1)
+    transformer_tuned_parser.set_defaults(func=run_transformer_tuned_baseline_command)
 
     return parser
 

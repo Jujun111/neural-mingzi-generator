@@ -62,6 +62,19 @@ MODEL_SPECS: Dict[str, ModelSpec] = {
         num_layers=2,
         description="Existing small causal Transformer used as the primary small matched reference.",
     ),
+    "transformer_small_tuned": ModelSpec(
+        name="transformer_small_tuned",
+        family="transformer",
+        size_tier="small_matched_tuned",
+        embedding_dim=256,
+        hidden_dim=512,
+        num_heads=8,
+        num_layers=2,
+        description=(
+            "Same architecture as transformer_small, reserved for Transformer-tuned optimization "
+            "runs with warmup/cosine scheduling."
+        ),
+    ),
     "lstm_small_matched": ModelSpec(
         name="lstm_small_matched",
         family="lstm",
@@ -101,6 +114,8 @@ DEFAULT_STUDY_MODELS = (
     "lstm_large",
     "transformer_large_matched",
 )
+AVAILABLE_STUDY_MODELS = tuple(MODEL_SPECS.keys())
+TRANSFORMER_TUNED_BASELINE = "transformer_small_tuned"
 DEFAULT_STUDY_SEEDS = (13, 37, 73)
 DEFAULT_DATA_FRACTIONS = (0.1, 0.3, 1.0)
 DEFAULT_TEMPERATURES = (0.6, 0.8, 1.0)

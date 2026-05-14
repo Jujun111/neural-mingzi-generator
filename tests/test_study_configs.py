@@ -22,6 +22,20 @@ class StudyConfigTests(unittest.TestCase):
         diff_ratio = abs(left - right) / max(left, right)
         self.assertLessEqual(diff_ratio, 0.10)
 
+    def test_tuned_transformer_keeps_small_transformer_architecture(self):
+        baseline = get_model_spec("transformer_small")
+        tuned = get_model_spec("transformer_small_tuned")
+
+        self.assertEqual(baseline.family, tuned.family)
+        self.assertEqual(baseline.embedding_dim, tuned.embedding_dim)
+        self.assertEqual(baseline.hidden_dim, tuned.hidden_dim)
+        self.assertEqual(baseline.num_heads, tuned.num_heads)
+        self.assertEqual(baseline.num_layers, tuned.num_layers)
+        self.assertEqual(
+            count_trainable_parameters(baseline),
+            count_trainable_parameters(tuned),
+        )
+
     def test_default_prompts_include_expected_compound_surnames(self):
         self.assertIn("欧阳", DEFAULT_PROMPTS)
         self.assertIn("司马", DEFAULT_PROMPTS)
