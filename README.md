@@ -13,8 +13,19 @@ The project includes a bilingual web demo, a FastAPI inference service, a React 
 - Web app: https://chinese-name-generator-frontend.onrender.com
 - API health: https://chinese-name-generator-api.onrender.com/health
 - Technical report: [technical_blog.pdf](technical_blog.pdf)
+- Product design note: [product_blog.pdf](product_blog.pdf)
 
 The public demo currently runs on a free Render instance. To keep the service stable within the free memory limit, the hosted version enables Markov generation and feedback collection by default. Neural checkpoints are included as project artifacts and can be run locally or on a larger backend instance.
+
+## Project Surfaces
+
+The project has two complementary stories.
+
+**Modeling study:** compares Markov, LSTM, and Transformer generators under a controlled micro-sequence setup. The main report focuses on the LSTM-vs-Transformer optimization question and keeps the research claim intentionally narrow.
+
+**Product and systems demo:** turns the generators into an interactive app. Markov supports lightweight generation and dynasty-style exploration; Historical Pattern mode uses constrained search to report corpus support for a requested character; Creative Ancient-Style mode uses FIM-style controllable generation for creative naming when historical support is weak.
+
+This separation is intentional. The research report asks what the models learn under controlled conditions. The product surface asks how to expose those models honestly to users.
 
 ## What You Can Try
 
@@ -62,6 +73,7 @@ flowchart LR
 - `study.py`: training, evaluation, ablation, FIM, and task-pool export commands
 - `plot_study.py`: study figure generation
 - `technical_blog.pdf`: long-form technical report with embedded figures
+- `product_blog.pdf`: product and ML-systems design note for Markov, Historical Pattern, and FIM modes
 - `study_protocol.md`: experiment design notes
 - `data/sample_names.json`: tiny sample data for smoke tests
 - `data/sample_eval_tasks.json`: small sample task pool for the Evaluation Lab
