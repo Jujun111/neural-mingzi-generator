@@ -1,29 +1,35 @@
 # Neural Mingzi Generator
 
-Neural Mingzi Generator is a small machine-learning system for generating Chinese-style names. It compares three approaches to a deliberately tiny sequence-generation task:
+[English](README.md) | [中文](README.zh-CN.md)
 
-- `Markov`: a lightweight probabilistic baseline
-- `LSTM`: a character-level recurrent neural network
-- `Transformer`: a small causal decoder-only Transformer
+**Neural Mingzi Generator is a bilingual ML systems portfolio project for Chinese-style name generation, combining a comparative modeling study, a deployed FastAPI + React demo, and lightweight public feedback collection.**
 
-The project includes a bilingual web demo, a FastAPI inference service, a React + TypeScript frontend, and a reproducible study pipeline for model comparison.
-
-## Live Demo
+Live links:
 
 - Web app: https://chinese-name-generator-frontend.onrender.com
 - API health: https://chinese-name-generator-api.onrender.com/health
 - Technical report: [technical_blog.pdf](technical_blog.pdf)
 - Product design note: [product_blog.pdf](product_blog.pdf)
 
-The public demo currently runs on a free Render instance. To keep the service stable within the free memory limit, the hosted version enables Markov generation and feedback collection by default. Neural checkpoints are included as project artifacts and can be run locally or on a larger backend instance.
+Stack: `PyTorch` · `FastAPI` · `React` · `TypeScript` · `Render` · `Supabase/Postgres`
+
+The public demo currently runs on a free Render instance. To keep the service stable within the free memory limit, the hosted version enables Markov generation and feedback collection by default. Neural checkpoints are included as release artifacts and can be run locally or on a larger backend instance.
+
+## Highlights
+
+- **Three-model comparison:** Markov, LSTM, and causal Transformer generators for a short Chinese micro-sequence task.
+- **Optimization-aware ML study:** the original Transformer gap was mostly explained by training recipe; warmup and cosine decay closed most of the gap.
+- **Name Workshop:** separates corpus-grounded `Historical Pattern` search from creative `Ancient-Style` infill generation.
+- **Public feedback loop:** Evaluation Lab serves anonymous tasks and stores feedback through the backend, not from the browser directly.
+- **Reproducible engineering workflow:** fixed splits, repeated seeds, structured metrics, release artifacts, and deployment-ready API contracts.
 
 ## Project Surfaces
 
-The project has two complementary stories.
+This repository has two complementary stories.
 
-**Modeling study:** compares Markov, LSTM, and Transformer generators under a controlled micro-sequence setup. The main report focuses on the LSTM-vs-Transformer optimization question and keeps the research claim intentionally narrow.
+**Modeling study:** compares Markov, LSTM, and Transformer generators under a controlled micro-sequence setup. The main technical report focuses on the LSTM-vs-Transformer optimization question and keeps the research claim intentionally narrow.
 
-**Product and systems demo:** turns the generators into an interactive app. Markov supports lightweight generation and dynasty-style exploration; Historical Pattern mode uses constrained search to report corpus support for a requested character; Creative Ancient-Style mode uses FIM-style controllable generation for creative naming when historical support is weak.
+**Product and systems demo:** turns the generators into an interactive app. Markov supports lightweight generation and dynasty-style exploration; Historical Pattern mode uses constrained search to report corpus support for a requested character; Creative Ancient-Style mode uses FIM-style controllable generation when historical support is weak.
 
 This separation is intentional. The research report asks what the models learn under controlled conditions. The product surface asks how to expose those models honestly to users.
 
@@ -196,6 +202,29 @@ python plot_study.py --run-id fairness_v1
 ```
 
 The full experiment design is documented in [study_protocol.md](study_protocol.md). The public repository includes sample data for smoke tests, but the full CBDB database is not redistributed here.
+
+## Promotion Notes
+
+Suggested repo description:
+
+```text
+Bilingual ML systems demo for Chinese name generation with Markov, LSTM, Transformer, FastAPI, React, and feedback collection.
+```
+
+Suggested GitHub topics:
+
+```text
+machine-learning deep-learning nlp pytorch fastapi react typescript sequence-modeling transformer lstm markov-chain chinese-nlp name-generator mlops portfolio-project
+```
+
+Suggested short launch post:
+
+```text
+I built Neural Mingzi Generator, a bilingual ML systems demo for Chinese name generation. It compares Markov, LSTM, and Transformer models, includes a deployed FastAPI + React app, and explores how to separate historical pattern search from creative infill generation.
+
+Live demo: https://chinese-name-generator-frontend.onrender.com
+Repo: https://github.com/Jujun111/neural-mingzi-generator
+```
 
 ## Data and Artifact Policy
 
