@@ -17,11 +17,11 @@ The public demo currently runs on a free Render instance. To keep the service st
 
 ## Highlights
 
-- **Three-model comparison:** Markov, LSTM, and causal Transformer generators for a short Chinese micro-sequence task.
-- **Optimization-aware ML study:** the original Transformer gap was mostly explained by training recipe; warmup and cosine decay closed most of the gap.
-- **Name Workshop:** separates corpus-grounded `Historical Pattern` search from creative `Ancient-Style` infill generation.
-- **Public feedback loop:** Evaluation Lab serves anonymous tasks and stores feedback through the backend, not from the browser directly.
-- **Reproducible engineering workflow:** fixed splits, repeated seeds, structured metrics, release artifacts, and deployment-ready API contracts.
+- **Three models, one tiny task.** Markov chain, LSTM, and causal Transformer — all trying to generate convincing 2–4 character Chinese names. When the sequence is this short, bigger isn't always better.
+- **The optimization plot twist.** The Transformer initially looked much worse than the LSTM. Turns out it wasn't the architecture's fault — a proper warmup and cosine decay schedule closed most of the gap.
+- **Name Workshop: history vs. creativity.** `Historical Pattern` mode searches the CBDB corpus for real attestations of a character. `Ancient-Style` mode uses fill-in-the-middle generation to create names that feel classical but aren't in the database. The two modes are deliberately separated so users know what's backed by data and what's a creative suggestion.
+- **Real user feedback, no privacy headache.** The Evaluation Lab runs blind A/B tasks and dynasty guessing games. Feedback goes through the backend to Supabase — the browser never sees a database credential.
+- **Reproducible by design.** Fixed splits, seeded runs, structured metrics, release artifacts, and deployment-ready API contracts. Everything that matters is versioned and scripted.
 
 ## Project Surfaces
 
@@ -31,7 +31,6 @@ This repository has two complementary stories.
 
 **Product and systems demo:** turns the generators into an interactive app. Markov supports lightweight generation and dynasty-style exploration; Historical Pattern mode uses constrained search to report corpus support for a requested character; Creative Ancient-Style mode uses FIM-style controllable generation when historical support is weak.
 
-This separation is intentional. The research report asks what the models learn under controlled conditions. The product surface asks how to expose those models honestly to users.
 
 ## What You Can Try
 
@@ -53,11 +52,13 @@ Feedback is stored through the backend with anonymous browser session IDs. The b
 
 ## Why This Project Is Interesting
 
-Chinese names are very short sequences, but they are not simple strings. A generated name has to balance surname structure, character-level compatibility, memorization risk, novelty, and cultural plausibility.
+The honest motivation: Like many people, sometimes I just want to pick a Chinese name but had absolutely no idea where to start. That got me curious, so how did people in Chinese history handle this? The CBDB (China Biographical Database Project) happens to have a massive, carefully curated collection of historical names, so I figured: why not let a few models learn from centuries of real naming practice and see what comes out?
 
-That makes the task a useful stress test for a common assumption in modern sequence modeling: bigger contextual architectures are not always automatically better when the sequence is extremely short and constrained. The current study asks whether recurrent inductive bias can remain competitive in this micro-sequence setting.
+Chinese names are only 2–4 characters long. That's tiny, yet it accompany a person throughout their entire life. A good name needs to get the surname right, keep characters compatible, avoid accidentally copying a real historical figure, and still feel natural. It's a deceptively hard generation task.
 
-The main result is intentionally framed cautiously: the original Transformer gap was mostly explained by optimization, while the LSTM remained slightly ahead after a light tuning-symmetry check. This should be read as evidence from one controlled experimental setup, not as a universal claim about Chinese name generation or Transformer architectures.
+This makes it a great stress test for a common assumption in NLP: that bigger, more expressive architectures always win. When your entire sequence fits in a tweet, does a Transformer really beat a simple LSTM? The answer, it turns out, depends more on how you train it than what you train.
+
+The main finding: With respect to the decrease of perplexity, the LSTM demonstrate a marginal advantage over the Transformer. The initial Transformer gap disappeared after fixing the training recipe, and the LSTM still held a slight edge. I'm not claiming LSTMs are superior for all short-sequence tasks, let alone that this tells you something universal about Chinese names. It's one controlled experiment with a specific dataset and a specific model size. And I think that framing makes it more interesting, not less.
 
 ## System Overview
 
