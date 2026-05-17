@@ -2,7 +2,7 @@
 
 [English](README.md) | [中文](README.zh-CN.md)
 
-**Neural Mingzi Generator is a bilingual ML systems portfolio project for Chinese-style name generation, combining a comparative modeling study, a deployed FastAPI + React demo, and lightweight public feedback collection.**
+**Neural Mingzi Generator is a bilingual ML systems project for Chinese-style name generation, combining a comparative modeling study, a deployed FastAPI + React demo, and lightweight public feedback collection.**
 
 Live links:
 
@@ -52,7 +52,7 @@ Feedback is stored through the backend with anonymous browser session IDs. The b
 
 ## Why This Project Is Interesting
 
-The honest motivation: Like many people, sometimes I just want to pick a Chinese name but had absolutely no idea where to start. That got me curious, so how did people in Chinese history handle this? The CBDB (China Biographical Database Project) happens to have a massive, carefully curated collection of historical names, so I figured: why not let a few models learn from centuries of real naming practice and see what comes out?
+The honest motivation: Like many people, sometimes I just wanted to pick a Chinese name but had absolutely no idea where to start. That got me curious, so how did people in Chinese history handle this? The CBDB (China Biographical Database Project) happens to have a massive, carefully curated collection of historical names, so I figured: why not let a few models learn from centuries of real naming practice and see what comes out?
 
 Chinese names are only 2–4 characters long. That's tiny, yet it accompany a person throughout their entire life. A good name needs to get the surname right, keep characters compatible, avoid accidentally copying a real historical figure, and still feel natural. It's a deceptively hard generation task.
 
