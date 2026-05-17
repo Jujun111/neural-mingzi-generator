@@ -2,7 +2,7 @@
 
 [English](README.md) | [中文](README.zh-CN.md)
 
-**Neural Mingzi Generator 是一个中文名字生成方向的 ML systems portfolio 项目：它结合了 Markov / LSTM / Transformer 三种生成路线、已部署的 FastAPI + React 双语 Web App，以及轻量级真实用户反馈收集。**
+**Neural Mingzi Generator 是一个中文名字生成方向的 ML systems 项目：它结合了 Markov / LSTM / Transformer 三种生成路线、已部署的 FastAPI + React 双语 Web App，以及轻量级真实用户反馈收集。**
 
 公开链接：
 
